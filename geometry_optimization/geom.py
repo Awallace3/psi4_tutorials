@@ -4,7 +4,6 @@ from pprint import pprint as pp
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
-import py3Dmol
 
 # Setting psi4 resources (Memory and threads)
 psi4.set_memory("124 GB")
@@ -31,20 +30,6 @@ psi4.set_options({
 # opt_energy = psi4.optimize('b3lyp', molecule=h2o, engine='geometric')
 opt_energy = psi4.optimize('b3lyp', molecule=h2o)
 print(f"Optimized B3LYP/def2-SVP Energy: {opt_energy:.6f} Hartree")
-
-# visualize the geometry optimization
-os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
-
-
-with open("opt_trajectory.xyz") as f:
-    xyz = f.read()
-
-view = py3Dmol.view(width=500, height=400)
-view.addModelsAsFrames(xyz, "xyz")
-view.setStyle({'stick': {}})
-view.animate({'loop': 'backAndForth'})
-view.zoomTo()
-view.show()
 
 # Print final optimized geometry
 print("Optimized Geometry (Angstrom):")
@@ -118,6 +103,20 @@ ax.legend(loc='upper left')
 ax.grid(True, linestyle='--', alpha=0.3)
 
 plt.tight_layout()
-plt.show()
+plt.savefig("stick_spectrum.png", dpi=300)
 
 
+# visualize the geometry optimization
+import py3Dmol
+os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
+
+
+with open("opt_trajectory.xyz") as f:
+    xyz = f.read()
+
+view = py3Dmol.view(width=500, height=400)
+view.addModelsAsFrames(xyz, "xyz")
+view.setStyle({'stick': {}})
+view.animate({'loop': 'backAndForth'})
+view.zoomTo()
+view.show()
