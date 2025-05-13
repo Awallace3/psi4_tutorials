@@ -108,6 +108,7 @@ plt.savefig("stick_spectrum.png", dpi=300)
 
 # visualize the geometry optimization
 import py3Dmol
+import urllib
 os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
 
 
@@ -119,4 +120,7 @@ view.addModelsAsFrames(xyz, "xyz")
 view.setStyle({'stick': {}})
 view.animate({'loop': 'backAndForth'})
 view.zoomTo()
-view.show()
+html = view._make_html()
+with open("opt_trajectory.html", "w") as f:
+    f.write(html)
+os.system("open opt_trajectory.html")
