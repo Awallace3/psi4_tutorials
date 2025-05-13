@@ -89,8 +89,8 @@ print(df[['B3LYP/def2-svp Error (cm^-1)', 'HF/sto-3g Error (cm^-1)']].describe()
 # Use DF to create artificial spectra that has sticks at the frequencies with x-axis of 0-5000 cm^-1
 # Create the stick spectrum
 fig, ax = plt.subplots(figsize=(8, 4))
-ax.vlines(df["B3LYP/def2-svp Frequency (cm^-1)"], 0, df["B3LYP/def2-svp IR Intensity"], colors='blue', linewidth=1.2, label='B3LYP/def2-svp')
-ax.vlines(df["HF/sto-3g Frequency (cm^-1)"], 0, df["HF/sto-3g IR Intensity"], colors='red', linewidth=1.2, label='HF/sto-3g')
+ax.vlines(df["B3LYP/def2-svp Frequency (cm^-1) real"], 0, df["B3LYP/def2-svp IR Intensity"], colors='blue', linewidth=1.2, label='B3LYP/def2-svp')
+ax.vlines(df["HF/sto-3g Frequency (cm^-1) real"], 0, df["HF/sto-3g IR Intensity"], colors='red', linewidth=1.2, label='HF/sto-3g')
 ax.vlines(df["Experimental Frequency (cm^-1)"], 0, df["Experimental IR Intensity"], colors='black', linewidth=1.2, label='Experimental')
 
 # Aesthetic details
