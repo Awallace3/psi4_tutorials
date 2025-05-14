@@ -462,6 +462,9 @@ def h2co3():
     print(f"Created smooth trajectory with {frame_count} frames")
     # Uncomment to open in browser automatically
     os.system("firefox opt_trajectory_h2co3.html")
+    # Note that this optimized geometry falls into a minimum (Syn-Anti), but
+    # the global minimum is actually a Syn-Syn conformation.
+    # https://pubs.acs.org/doi/full/10.1021/acs.jpca.1c02878
 
 
 def main():
