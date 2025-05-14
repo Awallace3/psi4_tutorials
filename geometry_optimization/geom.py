@@ -113,6 +113,7 @@ def h2o():
 
     # Extract geometries from optimization log
     os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
+    os.remove("geom.log")
 
     # Function to interpolate between two geometries
     def interpolate_geometries(geom1, geom2, step1, step2, num_frames=10):
@@ -337,6 +338,7 @@ def h2co3():
 
     # Extract geometries from optimization log
     os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory_h2co3.xyz")
+    os.remove("geom.log")
 
     # Function to interpolate between two geometries
     def interpolate_geometries(geom1, geom2, step1, step2, num_frames=10):
