@@ -114,23 +114,24 @@ import re
 os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
 
 # Function to interpolate between two geometries
-def interpolate_geometries(geom1, geom2, num_frames=10):
+def interpolate_geometries(geom1, geom2, step1, step2, num_frames=10):
     """
     Interpolate between two geometries to create a smooth transition.
     
     Parameters:
     geom1, geom2: Lists of [atom_symbol, x, y, z] for each geometry
+    step1, step2: Step numbers for the geometries
     num_frames: Number of interpolated frames to generate
     
     Returns:
-    List of interpolated geometries
+    List of interpolated geometries with their step labels
     """
     interpolated = []
     
     # Ensure both geometries have the same number of atoms
     assert len(geom1) == len(geom2), "Geometries must have the same number of atoms"
     
-    for i in range(num_frames + 1):
+    for i in range(1, num_frames):  # Skip first and last as they are the original geometries
         # Calculate interpolation factor (0 to 1)
         t = i / num_frames
         
@@ -146,72 +147,93 @@ def interpolate_geometries(geom1, geom2, num_frames=10):
             
             new_geom.append([atom_symbol, x, y, z])
         
-        interpolated.append(new_geom)
+        # Create step label for interpolated frame
+        step_label = f"Step {step1}-{step2} Interpolated {i}/{num_frames-1}"
+        interpolated.append((new_geom, step_label))
     
     return interpolated
 
-# Parse the XYZ file to get all geometries
+# Read the XYZ file directly
 with open("opt_trajectory.xyz") as f:
-    xyz_content = f.read()
+    lines = f.readlines()
 
-# Split the XYZ file into individual structures
-xyz_structures = []
-pattern = r'(\d+)\n(.*?)\n([\s\S]*?)(?=\d+\n|$)'
-matches = re.findall(pattern, xyz_content, re.DOTALL)
-
-for match in matches:
-    num_atoms = int(match[0])
-    comment = match[1]
-    atom_block = match[2].strip()
-    
-    # Parse atoms
-    atoms = []
-    for line in atom_block.split('\n'):
-        parts = line.split()
-        if len(parts) >= 4:
-            symbol = parts[0]
-            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-            atoms.append([symbol, x, y, z])
-    
-    xyz_structures.append((num_atoms, comment, atoms))
+# Parse the XYZ file to extract geometries
+geometries = []
+i = 0
+while i < len(lines):
+    if lines[i].strip().isdigit():  # Number of atoms line
+        num_atoms = int(lines[i].strip())
+        step_line = lines[i+1].strip()  # Step X line
+        
+        # Extract step number
+        step_num = int(step_line.split()[1]) if len(step_line.split()) > 1 else 0
+        
+        # Read atom coordinates
+        atoms = []
+        for j in range(i+2, i+2+num_atoms):
+            if j < len(lines):
+                parts = lines[j].split()
+                if len(parts) >= 4:
+                    symbol = parts[0]
+                    x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                    atoms.append([symbol, x, y, z])
+        
+        geometries.append((atoms, step_num))
+        i += num_atoms + 2  # Move to the next geometry
+    else:
+        i += 1  # Skip any unexpected lines
 
 # Create interpolated trajectory
-interpolated_trajectory = []
-for i in range(len(xyz_structures) - 1):
-    current_geom = xyz_structures[i][2]
-    next_geom = xyz_structures[i+1][2]
+interpolated_xyz = ""
+for i in range(len(geometries) - 1):
+    current_geom, current_step = geometries[i]
+    next_geom, next_step = geometries[i+1]
     
     # Add the current geometry
-    interpolated_trajectory.append(xyz_structures[i])
-    
-    # Add interpolated geometries (skip the first one as it's the same as current_geom)
-    interpolated_frames = interpolate_geometries(current_geom, next_geom, num_frames=10)[1:-1]
-    
-    for frame in interpolated_frames:
-        interpolated_trajectory.append((xyz_structures[i][0], f"Interpolated frame", frame))
-
-# Add the last geometry
-interpolated_trajectory.append(xyz_structures[-1])
-
-# Convert interpolated trajectory to XYZ format
-interpolated_xyz = ""
-for num_atoms, comment, atoms in interpolated_trajectory:
-    interpolated_xyz += f"{num_atoms}\n{comment}\n"
-    for atom in atoms:
+    interpolated_xyz += f"{len(current_geom)}\n"
+    interpolated_xyz += f"Step {current_step}\n"
+    for atom in current_geom:
         symbol, x, y, z = atom
         interpolated_xyz += f"{symbol} {x:.6f} {y:.6f} {z:.6f}\n"
-    interpolated_xyz += "\n"
+    
+    # Add interpolated geometries
+    interpolated_frames = interpolate_geometries(current_geom, next_geom, current_step, next_step, num_frames=10)
+    
+    for frame, step_label in interpolated_frames:
+        interpolated_xyz += f"{len(frame)}\n"
+        interpolated_xyz += f"{step_label}\n"
+        for atom in frame:
+            symbol, x, y, z = atom
+            interpolated_xyz += f"{symbol} {x:.6f} {y:.6f} {z:.6f}\n"
+
+# Add the last geometry
+last_geom, last_step = geometries[-1]
+interpolated_xyz += f"{len(last_geom)}\n"
+interpolated_xyz += f"Step {last_step}\n"
+for atom in last_geom:
+    symbol, x, y, z = atom
+    interpolated_xyz += f"{symbol} {x:.6f} {y:.6f} {z:.6f}\n"
 
 # Save the interpolated trajectory
 with open("interpolated_trajectory.xyz", "w") as f:
     f.write(interpolated_xyz.strip())
 
+# Count the number of frames in the interpolated trajectory
+frame_count = interpolated_xyz.count('\n3\n')  # Count occurrences of atom count lines
+
 # Visualize with py3Dmol
 view = py3Dmol.view(width=500, height=400)
 view.addModelsAsFrames(interpolated_xyz, "xyz")
-view.setStyle({'stick': {}})
-view.animate({'loop': 'backAndForth'})
+view.setStyle({'stick': {}, 'sphere': {'scale': 0.25}})
+view.animate({'loop': 'forward'})
 view.zoomTo()
 view.show()
 
-print(f"Created smooth trajectory with {len(interpolated_trajectory)} frames (including {len(interpolated_trajectory) - len(xyz_structures)} interpolated frames)")
+# Optionally save as HTML for external viewing
+html = view._make_html()
+with open("opt_trajectory.html", "w") as f:
+    f.write(html)
+
+print(f"Created smooth trajectory with {frame_count} frames")
+# Uncomment to open in browser automatically
+os.system("firefox opt_trajectory.html")
