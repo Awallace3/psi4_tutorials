@@ -108,15 +108,110 @@ plt.savefig("stick_spectrum.png", dpi=300)
 
 # visualize the geometry optimization
 import py3Dmol
+import re
+
+# Extract geometries from optimization log
 os.system("./extract_geoms_from_opt.awk geom.log > opt_trajectory.xyz")
 
+# Function to interpolate between two geometries
+def interpolate_geometries(geom1, geom2, num_frames=10):
+    """
+    Interpolate between two geometries to create a smooth transition.
+    
+    Parameters:
+    geom1, geom2: Lists of [atom_symbol, x, y, z] for each geometry
+    num_frames: Number of interpolated frames to generate
+    
+    Returns:
+    List of interpolated geometries
+    """
+    interpolated = []
+    
+    # Ensure both geometries have the same number of atoms
+    assert len(geom1) == len(geom2), "Geometries must have the same number of atoms"
+    
+    for i in range(num_frames + 1):
+        # Calculate interpolation factor (0 to 1)
+        t = i / num_frames
+        
+        # Create interpolated geometry
+        new_geom = []
+        for atom_idx in range(len(geom1)):
+            atom_symbol = geom1[atom_idx][0]  # Symbol should be the same in both geometries
+            
+            # Linear interpolation of coordinates
+            x = geom1[atom_idx][1] + t * (geom2[atom_idx][1] - geom1[atom_idx][1])
+            y = geom1[atom_idx][2] + t * (geom2[atom_idx][2] - geom1[atom_idx][2])
+            z = geom1[atom_idx][3] + t * (geom2[atom_idx][3] - geom1[atom_idx][3])
+            
+            new_geom.append([atom_symbol, x, y, z])
+        
+        interpolated.append(new_geom)
+    
+    return interpolated
 
+# Parse the XYZ file to get all geometries
 with open("opt_trajectory.xyz") as f:
-    xyz = f.read()
+    xyz_content = f.read()
 
+# Split the XYZ file into individual structures
+xyz_structures = []
+pattern = r'(\d+)\n(.*?)\n([\s\S]*?)(?=\d+\n|$)'
+matches = re.findall(pattern, xyz_content, re.DOTALL)
+
+for match in matches:
+    num_atoms = int(match[0])
+    comment = match[1]
+    atom_block = match[2].strip()
+    
+    # Parse atoms
+    atoms = []
+    for line in atom_block.split('\n'):
+        parts = line.split()
+        if len(parts) >= 4:
+            symbol = parts[0]
+            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+            atoms.append([symbol, x, y, z])
+    
+    xyz_structures.append((num_atoms, comment, atoms))
+
+# Create interpolated trajectory
+interpolated_trajectory = []
+for i in range(len(xyz_structures) - 1):
+    current_geom = xyz_structures[i][2]
+    next_geom = xyz_structures[i+1][2]
+    
+    # Add the current geometry
+    interpolated_trajectory.append(xyz_structures[i])
+    
+    # Add interpolated geometries (skip the first one as it's the same as current_geom)
+    interpolated_frames = interpolate_geometries(current_geom, next_geom, num_frames=10)[1:-1]
+    
+    for frame in interpolated_frames:
+        interpolated_trajectory.append((xyz_structures[i][0], f"Interpolated frame", frame))
+
+# Add the last geometry
+interpolated_trajectory.append(xyz_structures[-1])
+
+# Convert interpolated trajectory to XYZ format
+interpolated_xyz = ""
+for num_atoms, comment, atoms in interpolated_trajectory:
+    interpolated_xyz += f"{num_atoms}\n{comment}\n"
+    for atom in atoms:
+        symbol, x, y, z = atom
+        interpolated_xyz += f"{symbol} {x:.6f} {y:.6f} {z:.6f}\n"
+    interpolated_xyz += "\n"
+
+# Save the interpolated trajectory
+with open("interpolated_trajectory.xyz", "w") as f:
+    f.write(interpolated_xyz.strip())
+
+# Visualize with py3Dmol
 view = py3Dmol.view(width=500, height=400)
-view.addModelsAsFrames(xyz, "xyz")
+view.addModelsAsFrames(interpolated_xyz, "xyz")
 view.setStyle({'stick': {}})
 view.animate({'loop': 'backAndForth'})
 view.zoomTo()
 view.show()
+
+print(f"Created smooth trajectory with {len(interpolated_trajectory)} frames (including {len(interpolated_trajectory) - len(xyz_structures)} interpolated frames)")
